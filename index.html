@@ -6,54 +6,133 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
     <style>
-        body { 
-            margin: 0; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            background: #f0f0f0; 
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            font-family: 'Inter', 'Roboto', sans-serif;
+            color: #333;
         }
-        canvas { border: 1px solid black; }
-        .dg.ac { z-index: 1000; } /* Ensure GUI is on top */
-        #input-container { 
-            margin: 10px; 
-            font-family: Arial, sans-serif; 
+        canvas {
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
-        #input-container input { 
-            width: 60px; 
-            margin-right: 10px; 
+        .dg.ac {
+            z-index: 1000;
+            background: #2c3e50;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        #input-container button { 
-            padding: 5px 10px; 
+        .dg.main .controller .cr.number input[type="text"] {
+            font-family: 'Inter', 'Roboto', sans-serif;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            color: #fff;
+            background: #34495e;
         }
-        #point-counter { 
-            margin-left: 20px; 
-            font-weight: bold; 
+        .dg.main .controller .cr.number input[type="text"]:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        .dg.main .controller .cr.boolean input[type="checkbox"] {
+            accent-color: #007bff;
+        }
+        .dg.main .controller .cr.function .property-name {
+            color: #007bff;
+            font-family: 'Inter', 'Roboto', sans-serif;
+        }
+        .dg.main .controller .cr.function a {
+            background: #007bff;
+            border-radius: 4px;
+            color: #fff;
+            transition: background 0.2s;
+        }
+        .dg.main .controller .cr.function a:hover {
+            background: #0056b3;
+        }
+        .dg.main .property-name {
+            color: #fff;
+            font-family: 'Inter', 'Roboto', sans-serif;
+            font-size: 13px;
+        }
+        #input-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 16px 0;
+            background: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        #input-container label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #555;
+        }
+        #input-container input {
+            width: 80px;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #input-container input:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        #input-container button {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        #input-container button:hover {
+            background: #0056b3;
+        }
+        #point-counter {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
         }
         #vamana-instructions {
             position: fixed;
-            bottom: 10px;
-            left: 10px;
-            background: white;
-            border: 1px solid black;
-            padding: 10px;
-            font-family: Arial, sans-serif;
-            font-size: 14px;
-            max-width: 220px;
-            display: none; /* Hidden by default */
+            bottom: 16px;
+            left: 16px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            color: #444;
+            max-width: 200px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: none;
+            line-height: 1.5;
         }
         #dev-note {
             position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: white;
-            border: 1px solid black;
-            padding: 10px;
-            font-family: Arial, sans-serif;
-            font-size: 14px;
-            max-width: 300px;
+            bottom: 16px;
+            right: 16px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 13px;
+            color: #444;
+            max-width: 280px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
         #dev-note.minimized #note-content {
             display: none;
@@ -61,16 +140,59 @@
         #dev-note.minimized h3 {
             margin: 0;
         }
+        #dev-note h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #222;
+            font-weight: 600;
+        }
+        #dev-note p {
+            margin: 0;
+            line-height: 1.5;
+        }
         #toggle-note {
-            margin-top: 5px;
-            padding: 5px 10px;
-            cursor: pointer;
-            background: #e0e0e0;
+            align-self: flex-start;
+            padding: 6px 12px;
+            background: #007bff;
+            color: #fff;
             border: none;
             border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
         }
         #toggle-note:hover {
-            background: #d0d0d0;
+            background: #0056b3;
+        }
+        #legend {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            color: #444;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+        #legend .item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        #legend .item:last-child {
+            margin-bottom: 0;
+        }
+        #legend .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        #legend .square {
+            width: 8px;
+            height: 8px;
         }
     </style>
 </head>
@@ -81,11 +203,25 @@
         <button onclick="addPointFromInput()">Add Point</button>
         <span id="point-counter">Points: 0</span>
     </div>
+    <div id="legend">
+        <div class="item">
+            <span class="dot" style="background: #ff6347;"></span>
+            <span>Query point</span>
+        </div>
+        <div class="item">
+            <span class="dot" style="background: #000;"></span>
+            <span>Neighbors</span>
+        </div>
+        <div class="item">
+            <span class="square" style="background: rgba(240, 128, 128, 0.8);"></span>
+            <span>Occluded</span>
+        </div>
+    </div>
     <div id="vamana-instructions"></div>
     <div id="dev-note">
-        <h3>Note from Dev</h3>
+        <h3>Note from Developer</h3>
         <div id="note-content">
-            <p>This website visualizes the effect of modifying alpha in vamana neighbor selection using a diagram. Click or enter coordinates to add up to 20 points. Adjust alpha (0.02–20) to change boundary shapes (you'll notice alpha = 1, leads to perpendicular bisectors, can you see why?). Shaded regions show occlusion. There is also a Vamana Mode, here, new points must be farther from the query point than the previous point and outside occluded regions. Use undo/reset to modify points from the control panel.</p>
+            <p>This visualization explores the effect of the alpha parameter in Vamana neighbor selection. Add up to 20 points by clicking or entering coordinates. Adjust alpha (0.02–20) to see how it shapes boundaries (alpha = 1 creates perpendicular bisectors). Shaded areas indicate occluded regions. In Vamana Mode, new points must be farther from the query point and outside occluded regions. Use the controls to undo or reset points.</p>
         </div>
         <button id="toggle-note" onclick="toggleNote()">Minimize</button>
     </div>
@@ -96,8 +232,8 @@
         let alpha = 1.0;
         let k = alpha * alpha;
         let vamanaMode = false;
-        let showAxis = false; // Toggle for x and y axes
-        let lastDistance = 0; // Tracks distance of last point from base point
+        let showAxis = false;
+        let lastDistance = 0;
 
         function toggleNote() {
             const devNote = document.getElementById('dev-note');
@@ -120,9 +256,15 @@
             }
         }
 
+        function updateLegend() {
+            const legendDiv = document.getElementById('legend');
+            legendDiv.style.display = points.length > 0 ? 'block' : 'none';
+        }
+
         function updatePointCounter() {
             document.getElementById('point-counter').textContent = `Points: ${points.length}`;
             updateVamanaInstructions();
+            updateLegend();
             redraw();
         }
 
@@ -194,46 +336,41 @@
 
             // Axes with tick marks and labels
             if (showAxis) {
-                stroke(0); // Black
-                strokeWeight(2); // Thicker than grid
-                // X-axis (y=0)
+                stroke(100);
+                strokeWeight(1);
                 let xAxisY = mapToCanvasY(0, scaleY, offsetY);
                 line(0, xAxisY, width, xAxisY);
-                // Y-axis (x=0)
                 let yAxisX = mapToCanvasX(0, scaleX, offsetX);
                 line(yAxisX, 0, yAxisX, height);
 
-                // Tick marks and labels
                 textSize(10);
                 textAlign(CENTER, TOP);
-                fill(0);
+                fill(100);
                 noStroke();
-                // X-axis ticks and labels every 10 units
                 for (let x = -60; x <= 60; x += 10) {
                     let px = mapToCanvasX(x, scaleX, offsetX);
-                    stroke(0);
+                    stroke(100);
                     strokeWeight(1);
-                    line(px, xAxisY - 5, px, xAxisY + 5); // 5-pixel tick
+                    line(px, xAxisY - 5, px, xAxisY + 5);
                     noStroke();
-                    text(x.toString(), px, xAxisY + 8); // Label below x-axis
+                    text(x.toString(), px, xAxisY + 8);
                 }
-                // Y-axis ticks and labels every 10 units
                 textAlign(RIGHT, CENTER);
                 for (let y = -60; y <= 60; y += 10) {
                     let py = mapToCanvasY(y, scaleY, offsetY);
-                    stroke(0);
+                    stroke(100);
                     strokeWeight(1);
-                    line(yAxisX - 5, py, yAxisX + 5, py); // 5-pixel tick
+                    line(yAxisX - 5, py, yAxisX + 5, py);
                     noStroke();
-                    if (y !== 0) { // Skip origin to avoid overlap
-                        text(y.toString(), yAxisX - 8, py); // Label left of y-axis
+                    if (y !== 0) {
+                        text(y.toString(), yAxisX - 8, py);
                     }
                 }
             }
 
             // Grid
-            stroke(150); // Gray
-            strokeWeight(0.5);
+            stroke(200);
+            strokeWeight(0.3);
             for (let x = xMin; x <= xMax; x += gridSpacing) {
                 let px = mapToCanvasX(x, scaleX, offsetX);
                 line(px, 0, px, height);
@@ -246,7 +383,7 @@
             // Boundaries and shading
             if (points.length > 1) {
                 let [x1, y1] = points[0];
-                let resolution = 2; // Finer resolution to reduce bleeding
+                let resolution = 2;
                 for (let px = 0; px < width; px += resolution) {
                     for (let py = 0; py < height; py += resolution) {
                         let x = mapFromCanvasX(px, scaleX, offsetX);
@@ -275,7 +412,7 @@
                             }
                         }
                         if (isOccluded) {
-                            fill(240, 128, 128, 100);
+                            fill(240, 128, 128, 80);
                             noStroke();
                             rect(px, py, resolution, resolution);
                         }
@@ -290,7 +427,7 @@
                     stroke(0);
                     strokeWeight(0.5);
                     line(mapToCanvasX(x1, scaleX, offsetX), mapToCanvasY(y1, scaleY, offsetY), px2, py2);
-                    stroke(0, 0, 255);
+                    stroke(255, 99, 71);
                     strokeWeight(1);
                     if (Math.abs(k - 1) < 0.0001) {
                         let mx = (x1 + x2) / 2;
@@ -327,7 +464,7 @@
             if (points.length > 0) {
                 let [x1, y1] = points[0];
                 if (xMin <= x1 && x1 <= xMax && yMin <= y1 && y1 <= yMax) {
-                    fill(255, 0, 0);
+                    fill(255, 99, 71);
                     noStroke();
                     let px1 = mapToCanvasX(x1, scaleX, offsetX);
                     let py1 = mapToCanvasY(y1, scaleY, offsetY);
@@ -343,25 +480,6 @@
                         circle(px, py, 6);
                     }
                 }
-            }
-
-            // Legend (drawn last to ensure visibility)
-            if (points.length > 0) {
-                fill(255);
-                stroke(0);
-                rect(10, 10, 150, 70);
-                fill(255, 0, 0);
-                noStroke();
-                circle(20, 30, 8);
-                fill(0);
-                text("Query point", 30, 35);
-                fill(0);
-                circle(20, 50, 6);
-                text("Neighbors", 30, 55);
-                fill(240, 128, 128, 100);
-                rect(20, 65, 10, 10);
-                fill(0);
-                text("Occluded region", 35, 70);
             }
         }
 
