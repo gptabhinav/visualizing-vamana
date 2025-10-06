@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Voronoi-like Diagram</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            background: #f0f0f0; 
+        }
+        canvas { border: 1px solid black; }
+        .dg.ac { z-index: 1000; } /* Ensure GUI is on top */
+        #input-container { 
+            margin: 10px; 
+            font-family: Arial, sans-serif; 
+        }
+        #input-container input { 
+            width: 60px; 
+            margin-right: 10px; 
+        }
+        #input-container button { 
+            padding: 5px 10px; 
+        }
+        #point-counter { 
+            margin-left: 20px; 
+            font-weight: bold; 
+        }
+    </style>
+</head>
+<body>
+    <div id="input-container">
+        <label>x: <input type="number" id="x-input" min="-60" max="60" step="0.1" value="0"></label>
+        <label>y: <input type="number" id="y-input" min="-60" max="60" step="0.1" value="0"></label>
+        <button onclick="addPointFromInput()">Add Point</button>
+        <span id="point-counter">Points: 0</span>
+    </div>
+    <script>
+        let points = [];
+        let xMin = -60, xMax = 60, yMin = -60, yMax = 60;
+        let gridSpacing = 5;
+        let a = 1.0;
+        let k = a * a;
+
+        function updatePointCounter() {
+            document.getElementById('point-counter').textContent = `Points: ${points.length}`;
+        }
+
+        function setup() {
+            createCanvas(800, 800);
+            let gui = new dat.GUI();
+            gui.add({ a: a }, 'a', 0.02, 20, 0.02).onChange(val => { a = val; k = a * a; });
+            gui.add({ gridSpacing: gridSpacing }, 'gridSpacing', 5, 10, 1).onChange(val => { gridSpacing = Math.floor(val); });
+            gui.add({ reset: () => { points = []; updatePointCounter(); } }, 'reset');
+            gui.add({ undo: () => { points.pop(); updatePointCounter(); } }, 'undo');
+            updatePointCounter();
+        }
+
+        function draw() {
+            background(255);
+            let scaleX = width / (xMax - xMin);
+            let scaleY = height / (yMax - yMin);
+            let offsetX = -xMin * scaleX;
+            let offsetY = -yMin * scaleY;
+
+            // Grid
+            stroke(150);
+            strokeWeight(0.5);
+            for (let x = xMin; x <= xMax; x += gridSpacing) {
+                let px = mapToCanvasX(x, scaleX, offsetX);
+                line(px, 0, px, height);
+            }
+            for (let y = yMin; y <= yMax; y += gridSpacing) {
+                let py = mapToCanvasY(y, scaleY, offsetY);
+                line(0, py, width, py);
+            }
+
+            // Points
+            if (points.length > 0) {
+                let [x1, y1] = points[0];
+                if (xMin <= x1 && x1 <= xMax && yMin <= y1 && y1 <= yMax) {
+                    fill(255, 0, 0);
+                    noStroke();
+                    let px1 = mapToCanvasX(x1, scaleX, offsetX);
+                    let py1 = mapToCanvasY(y1, scaleY, offsetY);
+                    circle(px1, py1, 8);
+                }
+                for (let i = 1; i < points.length; i++) {
+                    let [x, y] = points[i];
+                    if (xMin <= x && x <= xMax && yMin <= y && y <= yMax) {
+                        fill(0);
+                        noStroke();
+                        let px = mapToCanvasX(x, scaleX, offsetX);
+                        let py = mapToCanvasY(y, scaleY, offsetY);
+                        circle(px, py, 6);
+                    }
+                }
+            }
+
+            // Boundaries and shading
+            if (points.length > 1) {
+                let [x1, y1] = points[0];
+                let resolution = 2;
+                for (let px = 0; px < width; px += resolution) {
+                    for (let py = 0; py < height; py += resolution) {
+                        let x = mapFromCanvasX(px, scaleX, offsetX);
+                        let y = mapFromCanvasY(py, scaleY, offsetY);
+                        let isOccluded = false;
+                        for (let i = 1; i < points.length; i++) {
+                            let [x2, y2] = points[i];
+                            if (Math.abs(k - 1) < 0.0001) {
+                                let mx = (x1 + x2) / 2;
+                                let my = (y1 + y2) / 2;
+                                let dx = x2 - x1, dy = y2 - y1;
+                                if (dx === 0 && dy === 0) continue;
+                                let perpDx = -dy, perpDy = dx;
+                                let side = (x - mx) * perpDy - (y - my) * perpDx;
+                                let sideP2 = (x2 - mx) * perpDy - (y2 - my) * perpDx;
+                                if ((sideP2 > 0 && side > 0) || (sideP2 < 0 && side < 0)) {
+                                    isOccluded = true;
+                                }
+                            } else {
+                                let leftSide = (x - x1)**2 + (y - y1)**2 - k * ((x - x2)**2 + (y - y2)**2);
+                                let leftP2 = (x2 - x1)**2 + (y2 - y1)**2;
+                                if (k > 0 && ((leftP2 > 0 && leftSide > 0) || (leftP2 < 0 && leftSide < 0)) ||
+                                    (k < 0 && ((leftP2 > 0 && leftSide < 0) || (leftP2 < 0 && leftSide > 0)))) {
+                                    isOccluded = true;
+                                }
+                            }
+                        }
+                        if (isOccluded) {
+                            fill(240, 128, 128, 100);
+                            noStroke();
+                            rect(px, py, resolution, resolution);
+                        }
+                    }
+                }
+
+                // Draw boundaries
+                for (let i = 1; i < points.length; i++) {
+                    let [x2, y2] = points[i];
+                    let px2 = mapToCanvasX(x2, scaleX, offsetX);
+                    let py2 = mapToCanvasY(y2, scaleY, offsetY);
+                    stroke(0);
+                    strokeWeight(0.5);
+                    line(mapToCanvasX(x1, scaleX, offsetX), mapToCanvasY(y1, scaleY, offsetY), px2, py2);
+                    stroke(0, 0, 255);
+                    strokeWeight(1);
+                    if (Math.abs(k - 1) < 0.0001) {
+                        let mx = (x1 + x2) / 2;
+                        let my = (y1 + y2) / 2;
+                        let dx = x2 - x1, dy = y2 - y1;
+                        if (dx === 0 && dy === 0) continue;
+                        let perpDx = -dy, perpDy = dx;
+                        let tMin = -100, tMax = 100;
+                        let pxMin = mapToCanvasX(mx + tMin * perpDx, scaleX, offsetX);
+                        let pyMin = mapToCanvasY(my + tMin * perpDy, scaleY, offsetY);
+                        let pxMax = mapToCanvasX(mx + tMax * perpDx, scaleX, offsetX);
+                        let pyMax = mapToCanvasY(my + tMax * perpDy, scaleY, offsetY);
+                        line(pxMin, pyMin, pxMax, pyMax);
+                    } else {
+                        let centerX = (x1 - k * x2) / (1 - k);
+                        let centerY = (y1 - k * y2) / (1 - k);
+                        let A2 = x1**2 + y1**2;
+                        let B2 = x2**2 + y2**2;
+                        let F = (A2 - k * B2) / (1 - k);
+                        let r2 = centerX**2 + centerY**2 - F;
+                        if (r2 >= 0) {
+                            let r = Math.sqrt(r2);
+                            let pxCenter = mapToCanvasX(centerX, scaleX, offsetX);
+                            let pyCenter = mapToCanvasY(centerY, scaleY, offsetY);
+                            let rCanvas = r * scaleX;
+                            noFill();
+                            circle(pxCenter, pyCenter, rCanvas * 2);
+                        }
+                    }
+                }
+            }
+
+            // Legend
+            if (points.length > 0) {
+                fill(255);
+                stroke(0);
+                rect(10, 10, 150, 80);
+                fill(255, 0, 0);
+                noStroke();
+                circle(20, 30, 8);
+                fill(0);
+                text("Query point", 30, 35);
+                fill(0);
+                circle(20, 50, 6);
+                text("Neighbors", 30, 55);
+                fill(240, 128, 128, 100);
+                rect(20, 65, 10, 10);
+                fill(0);
+                text("Occluded region", 35, 70);
+            }
+        }
+
+        function mousePressed() {
+            if (points.length >= 20 || mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+            let scaleX = width / (xMax - xMin);
+            let scaleY = height / (yMax - yMin);
+            let offsetX = -xMin * scaleX;
+            let offsetY = -yMin * scaleY;
+            let x = mapFromCanvasX(mouseX, scaleX, offsetX);
+            let y = mapFromCanvasY(mouseY, scaleY, offsetY);
+            if (xMin <= x && x <= xMax && yMin <= y && y <= yMax) {
+                points.push([x, y]);
+                updatePointCounter();
+            }
+        }
+
+        function addPointFromInput() {
+            if (points.length >= 20) {
+                alert("Maximum 20 points reached.");
+                return;
+            }
+            let x = parseFloat(document.getElementById('x-input').value);
+            let y = parseFloat(document.getElementById('y-input').value);
+            if (isNaN(x) || isNaN(y)) {
+                alert("Please enter valid numbers for x and y.");
+                return;
+            }
+            if (x < xMin || x > xMax || y < yMin || y > yMax) {
+                alert(`Coordinates must be within [${xMin}, ${xMax}] for x and [${yMin}, ${yMax}] for y.`);
+                return;
+            }
+            points.push([x, y]);
+            document.getElementById('x-input').value = 0;
+            document.getElementById('y-input').value = 0;
+            updatePointCounter();
+        }
+
+        function mapToCanvasX(x, scaleX, offsetX) {
+            return x * scaleX + offsetX;
+        }
+
+        function mapToCanvasY(y, scaleY, offsetY) {
+            return height - (y * scaleY + offsetY);
+        }
+
+        function mapFromCanvasX(px, scaleX, offsetX) {
+            return (px - offsetX) / scaleX;
+        }
+
+        function mapFromCanvasY(py, scaleY, offsetY) {
+            return (height - py - offsetY) / scaleY;
+        }
+    </script>
+</body>
+</html>
