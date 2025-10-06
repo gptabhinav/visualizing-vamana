@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Voronoi-like Diagram</title>
+    <title>Effect of Alpha Parameter</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
     <style>
@@ -32,6 +32,46 @@
             margin-left: 20px; 
             font-weight: bold; 
         }
+        #vamana-instructions {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: white;
+            border: 1px solid black;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            max-width: 220px;
+            display: none; /* Hidden by default */
+        }
+        #dev-note {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: white;
+            border: 1px solid black;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            max-width: 300px;
+        }
+        #dev-note.minimized #note-content {
+            display: none;
+        }
+        #dev-note.minimized h3 {
+            margin: 0;
+        }
+        #toggle-note {
+            margin-top: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            background: #e0e0e0;
+            border: none;
+            border-radius: 4px;
+        }
+        #toggle-note:hover {
+            background: #d0d0d0;
+        }
     </style>
 </head>
 <body>
@@ -41,24 +81,107 @@
         <button onclick="addPointFromInput()">Add Point</button>
         <span id="point-counter">Points: 0</span>
     </div>
+    <div id="vamana-instructions"></div>
+    <div id="dev-note">
+        <h3>Note from Dev</h3>
+        <div id="note-content">
+            <p>This website visualizes the effect of modifying alpha in vamana neighbor selection using a diagram. Click or enter coordinates to add up to 20 points. Adjust alpha (0.02–20) to change boundary shapes (you'll notice alpha = 1, leads to perpendicular bisectors, can you see why?). Shaded regions show occlusion. There is also a Vamana Mode, here, new points must be farther from the query point than the previous point and outside occluded regions. Use undo/reset to modify points from the control panel.</p>
+        </div>
+        <button id="toggle-note" onclick="toggleNote()">Minimize</button>
+    </div>
     <script>
         let points = [];
         let xMin = -60, xMax = 60, yMin = -60, yMax = 60;
         let gridSpacing = 5;
-        let a = 1.0;
-        let k = a * a;
+        let alpha = 1.0;
+        let k = alpha * alpha;
+        let vamanaMode = false;
+        let showAxis = false; // Toggle for x and y axes
+        let lastDistance = 0; // Tracks distance of last point from base point
+
+        function toggleNote() {
+            const devNote = document.getElementById('dev-note');
+            const toggleButton = document.getElementById('toggle-note');
+            devNote.classList.toggle('minimized');
+            toggleButton.textContent = devNote.classList.contains('minimized') ? 'Expand' : 'Minimize';
+        }
+
+        function updateVamanaInstructions() {
+            const instructionsDiv = document.getElementById('vamana-instructions');
+            if (vamanaMode && points.length > 0) {
+                instructionsDiv.style.display = 'block';
+                instructionsDiv.innerHTML = `
+                    Vamana Mode: ON<br>
+                    Next point must be farther than ${lastDistance.toFixed(2)} from base<br>
+                    Can't add points to occluded region
+                `;
+            } else {
+                instructionsDiv.style.display = 'none';
+            }
+        }
 
         function updatePointCounter() {
             document.getElementById('point-counter').textContent = `Points: ${points.length}`;
+            updateVamanaInstructions();
+            redraw();
+        }
+
+        function isPointOccluded(x, y) {
+            if (points.length < 1) return false;
+            let [x1, y1] = points[0];
+            for (let i = 1; i < points.length; i++) {
+                let [x2, y2] = points[i];
+                if (Math.abs(k - 1) < 0.0001) {
+                    let mx = (x1 + x2) / 2;
+                    let my = (y1 + y2) / 2;
+                    let dx = x2 - x1, dy = y2 - y1;
+                    if (dx === 0 && dy === 0) continue;
+                    let perpDx = -dy, perpDy = dx;
+                    let side = (x - mx) * perpDy - (y - my) * perpDx;
+                    let sideP2 = (x2 - mx) * perpDy - (y2 - my) * perpDx;
+                    if ((sideP2 > 0 && side > 0) || (sideP2 < 0 && side < 0)) {
+                        return true;
+                    }
+                } else {
+                    let leftSide = (x - x1)**2 + (y - y1)**2 - k * ((x - x2)**2 + (y - y2)**2);
+                    let leftP2 = (x2 - x1)**2 + (y2 - y1)**2;
+                    if ((k > 0 && ((leftP2 > 0 && leftSide > 0) || (leftP2 < 0 && leftSide < 0))) ||
+                        (k < 0 && ((leftP2 > 0 && leftSide < 0) || (leftP2 < 0 && leftSide > 0)))) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         function setup() {
             createCanvas(800, 800);
+            noLoop();
             let gui = new dat.GUI();
-            gui.add({ a: a }, 'a', 0.02, 20, 0.02).onChange(val => { a = val; k = a * a; });
-            gui.add({ gridSpacing: gridSpacing }, 'gridSpacing', 5, 10, 1).onChange(val => { gridSpacing = Math.floor(val); });
-            gui.add({ reset: () => { points = []; updatePointCounter(); } }, 'reset');
-            gui.add({ undo: () => { points.pop(); updatePointCounter(); } }, 'undo');
+            gui.add({ alpha: alpha }, 'alpha', 0.02, 20, 0.02).onChange(val => { 
+                alpha = val; 
+                k = alpha * alpha; 
+                redraw(); 
+            });
+            gui.add({ gridSpacing: gridSpacing }, 'gridSpacing', 5, 10, 1).onChange(val => { 
+                gridSpacing = Math.floor(val); 
+                redraw(); 
+            });
+            gui.add({ vamanaMode: vamanaMode }, 'vamanaMode').onChange(val => { 
+                vamanaMode = val; 
+                updateVamanaInstructions();
+                redraw(); 
+            });
+            gui.add({ showAxis: showAxis }, 'showAxis').onChange(val => { 
+                showAxis = val; 
+                redraw(); 
+            });
+            gui.add({ reset: () => { points = []; lastDistance = 0; updatePointCounter(); } }, 'reset');
+            gui.add({ undo: () => { 
+                points.pop(); 
+                lastDistance = points.length > 1 ? Math.sqrt((points[points.length-1][0] - points[0][0])**2 + (points[points.length-1][1] - points[0][1])**2) : 0;
+                updatePointCounter(); 
+            } }, 'undo');
             updatePointCounter();
         }
 
@@ -69,8 +192,47 @@
             let offsetX = -xMin * scaleX;
             let offsetY = -yMin * scaleY;
 
+            // Axes with tick marks and labels
+            if (showAxis) {
+                stroke(0); // Black
+                strokeWeight(2); // Thicker than grid
+                // X-axis (y=0)
+                let xAxisY = mapToCanvasY(0, scaleY, offsetY);
+                line(0, xAxisY, width, xAxisY);
+                // Y-axis (x=0)
+                let yAxisX = mapToCanvasX(0, scaleX, offsetX);
+                line(yAxisX, 0, yAxisX, height);
+
+                // Tick marks and labels
+                textSize(10);
+                textAlign(CENTER, TOP);
+                fill(0);
+                noStroke();
+                // X-axis ticks and labels every 10 units
+                for (let x = -60; x <= 60; x += 10) {
+                    let px = mapToCanvasX(x, scaleX, offsetX);
+                    stroke(0);
+                    strokeWeight(1);
+                    line(px, xAxisY - 5, px, xAxisY + 5); // 5-pixel tick
+                    noStroke();
+                    text(x.toString(), px, xAxisY + 8); // Label below x-axis
+                }
+                // Y-axis ticks and labels every 10 units
+                textAlign(RIGHT, CENTER);
+                for (let y = -60; y <= 60; y += 10) {
+                    let py = mapToCanvasY(y, scaleY, offsetY);
+                    stroke(0);
+                    strokeWeight(1);
+                    line(yAxisX - 5, py, yAxisX + 5, py); // 5-pixel tick
+                    noStroke();
+                    if (y !== 0) { // Skip origin to avoid overlap
+                        text(y.toString(), yAxisX - 8, py); // Label left of y-axis
+                    }
+                }
+            }
+
             // Grid
-            stroke(150);
+            stroke(150); // Gray
             strokeWeight(0.5);
             for (let x = xMin; x <= xMax; x += gridSpacing) {
                 let px = mapToCanvasX(x, scaleX, offsetX);
@@ -81,32 +243,10 @@
                 line(0, py, width, py);
             }
 
-            // Points
-            if (points.length > 0) {
-                let [x1, y1] = points[0];
-                if (xMin <= x1 && x1 <= xMax && yMin <= y1 && y1 <= yMax) {
-                    fill(255, 0, 0);
-                    noStroke();
-                    let px1 = mapToCanvasX(x1, scaleX, offsetX);
-                    let py1 = mapToCanvasY(y1, scaleY, offsetY);
-                    circle(px1, py1, 8);
-                }
-                for (let i = 1; i < points.length; i++) {
-                    let [x, y] = points[i];
-                    if (xMin <= x && x <= xMax && yMin <= y && y <= yMax) {
-                        fill(0);
-                        noStroke();
-                        let px = mapToCanvasX(x, scaleX, offsetX);
-                        let py = mapToCanvasY(y, scaleY, offsetY);
-                        circle(px, py, 6);
-                    }
-                }
-            }
-
             // Boundaries and shading
             if (points.length > 1) {
                 let [x1, y1] = points[0];
-                let resolution = 2;
+                let resolution = 2; // Finer resolution to reduce bleeding
                 for (let px = 0; px < width; px += resolution) {
                     for (let py = 0; py < height; py += resolution) {
                         let x = mapFromCanvasX(px, scaleX, offsetX);
@@ -128,7 +268,7 @@
                             } else {
                                 let leftSide = (x - x1)**2 + (y - y1)**2 - k * ((x - x2)**2 + (y - y2)**2);
                                 let leftP2 = (x2 - x1)**2 + (y2 - y1)**2;
-                                if (k > 0 && ((leftP2 > 0 && leftSide > 0) || (leftP2 < 0 && leftSide < 0)) ||
+                                if ((k > 0 && ((leftP2 > 0 && leftSide > 0) || (leftP2 < 0 && leftSide < 0))) ||
                                     (k < 0 && ((leftP2 > 0 && leftSide < 0) || (leftP2 < 0 && leftSide > 0)))) {
                                     isOccluded = true;
                                 }
@@ -183,11 +323,33 @@
                 }
             }
 
-            // Legend
+            // Points
+            if (points.length > 0) {
+                let [x1, y1] = points[0];
+                if (xMin <= x1 && x1 <= xMax && yMin <= y1 && y1 <= yMax) {
+                    fill(255, 0, 0);
+                    noStroke();
+                    let px1 = mapToCanvasX(x1, scaleX, offsetX);
+                    let py1 = mapToCanvasY(y1, scaleY, offsetY);
+                    circle(px1, py1, 8);
+                }
+                for (let i = 1; i < points.length; i++) {
+                    let [x, y] = points[i];
+                    if (xMin <= x && x <= xMax && yMin <= y && y <= yMax) {
+                        fill(0);
+                        noStroke();
+                        let px = mapToCanvasX(x, scaleX, offsetX);
+                        let py = mapToCanvasY(y, scaleY, offsetY);
+                        circle(px, py, 6);
+                    }
+                }
+            }
+
+            // Legend (drawn last to ensure visibility)
             if (points.length > 0) {
                 fill(255);
                 stroke(0);
-                rect(10, 10, 150, 80);
+                rect(10, 10, 150, 70);
                 fill(255, 0, 0);
                 noStroke();
                 circle(20, 30, 8);
@@ -212,7 +374,23 @@
             let x = mapFromCanvasX(mouseX, scaleX, offsetX);
             let y = mapFromCanvasY(mouseY, scaleY, offsetY);
             if (xMin <= x && x <= xMax && yMin <= y && y <= yMax) {
+                if (vamanaMode && points.length > 0) {
+                    let baseX = points[0][0], baseY = points[0][1];
+                    let dist = Math.sqrt((x - baseX)**2 + (y - baseY)**2);
+                    if (dist <= lastDistance) {
+                        alert(`Point must be farther than ${lastDistance.toFixed(2)} from the base point.`);
+                        return;
+                    }
+                    if (isPointOccluded(x, y)) {
+                        alert("Point cannot be in the occluded region in Vamana Mode.");
+                        return;
+                    }
+                }
                 points.push([x, y]);
+                if (points.length > 1) {
+                    let baseX = points[0][0], baseY = points[0][1];
+                    lastDistance = Math.sqrt((x - baseX)**2 + (y - baseY)**2);
+                }
                 updatePointCounter();
             }
         }
@@ -232,7 +410,23 @@
                 alert(`Coordinates must be within [${xMin}, ${xMax}] for x and [${yMin}, ${yMax}] for y.`);
                 return;
             }
+            if (vamanaMode && points.length > 0) {
+                let baseX = points[0][0], baseY = points[0][1];
+                let dist = Math.sqrt((x - baseX)**2 + (y - baseY)**2);
+                if (dist <= lastDistance) {
+                    alert(`Point must be farther than ${lastDistance.toFixed(2)} from the base point.`);
+                    return;
+                }
+                if (isPointOccluded(x, y)) {
+                    alert("Point cannot be in the occluded region in Vamana Mode.");
+                    return;
+                }
+            }
             points.push([x, y]);
+            if (points.length > 1) {
+                let baseX = points[0][0], baseY = points[0][1];
+                lastDistance = Math.sqrt((x - baseX)**2 + (y - baseY)**2);
+            }
             document.getElementById('x-input').value = 0;
             document.getElementById('y-input').value = 0;
             updatePointCounter();
